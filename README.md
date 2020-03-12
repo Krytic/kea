@@ -2,6 +2,8 @@
 
 Something to help you out with histograms and logarithmic binning in BPASS
 
+In the future this will contain a method to combine cosmological simulations with the BPASS models.
+
 
 
 ### histogram
