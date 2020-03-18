@@ -1,6 +1,6 @@
 from setuptools import setup
 
-setup(  name="kea",
+setup(  name="Kea",
         version="0.1",
         description="An object orientated histogram for use with BPASS",
         author="Max Briel",

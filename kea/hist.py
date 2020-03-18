@@ -46,25 +46,32 @@ class histogram:
         Multiply the values with the given number or multiply each value with the
         value from the numpy array
         """
-        self._values = self._values * other
-        return None
+        out = self.copy()
+        out._values = self._values * other
+        return out
 
     def __div__(self, other):
         """
         Divides the values with the given number or divides each value with the
         value from the numpy array
         """
-        self._values = self._values / other
-        return None
+        out = self.copy()
+        out._values = self._values / other
+        return out
 
     def __truediv__(self, other):
         """
         Divides the values with the given number or divides each value with the
         value from the numpy array
         """
-        self._values = self._values / other
-        return None
+        out = self.copy()
+        out._values = self._values / other
+        return out
 
+    def copy(self):
+        out = histogram(xlow=self._xlow, xup=self._xup, nr_bins=self._nr_bins)
+        out._values = self._values
+        return out
 
     def Fill(self, x, w=1):
         """
@@ -81,22 +88,23 @@ class histogram:
                 self._values[bin_nr] += g
 
         if not isinstance(x, type(0.0)):
-            if len(x) != len(w):
+            if w==1:
+                for i in range(0, len(x)):
+                    f(x[i], 1)
+            elif len(x) != len(w):
                 raise Exception("weights needs to be as long as x")
-            for i in range(0, len(x)):
-                f(x[i], w[i])
+            else:
+                for i in range(0, len(x)):
+                    f(x[i], w[i])
         else:
             f(x, w)
 
-
-    def plot(self):
+    def plot(self, *argv, **kwargs):
         """
         Plot the histogram
         """
-        fig = plt.figure()
-        _ = plt.hist(self._bin_edges[:-1], self._bin_edges, weights=self._values)
-        return fig
-
+        _ = plt.hist(self._bin_edges[:-1], self._bin_edges, weights=self._values,histtype=u'step', *argv, **kwargs)
+        return None
 
     def getBinContent(self, bin_nr):
         """
@@ -122,6 +130,9 @@ class histogram:
         """
         return self.upper_edges[i] - self.lower_edges[i]
 
+    def getBinCenter(self, i):
+        return (self.upper_edges[i] + self.lower_edges[i])/2
+
     def getBin(self, x):
         """
         Get the bin number of the data value
@@ -132,6 +143,9 @@ class histogram:
         if out == self._nr_bins:
             out = out-1
         return out
+
+    def getBinEdges(self):
+        return self._bin_edges
 
 
     def sum(self, x1, x2):
@@ -198,8 +212,6 @@ class histogram:
 
             return total
 
-
-
 class BPASS_hist(histogram):
     """
     A container for the BPASS data to reside and make it possible to perform basic
@@ -231,25 +243,21 @@ class BPASS_hist(histogram):
         return histogram.integral(self, x1, x2) *1e9
 
 
-    def plotLog(self, ylabel):
+    def plotLog(self, *argv, **kwargs):
         """
         Plot the dat in a logarithmic way
         """
-        fig = plt.figure()
-        _ = plt.hist(self.getLogEdges()[:-1], self.getLogEdges(), weights=self._values)
+        _ = plt.hist(self.getLogEdges()[:-1], self.getLogEdges(), weights=self._values, histtype=u'step', *argv, **kwargs)
         _ = plt.xlabel("log(age/yr)")
-        _ = plt.ylabel(ylabel)
-        return fig
+        return None
 
-    def plotLin(self, ylabel):
+    def plotLin(self, *argv, **kwargs):
         """
         Plot the data on a linear scale.
         """
-        fig = plt.figure()
-        _ = plt.hist(self.getLinEdges()[:-1], self.getLinEdges(), weights=self._values)
+        _ = plt.hist(self.getLinEdges()[:-1], self.getLinEdges(), weights=self._values, histtype=u'step', *argv, **kwargs)
         _ = plt.xlabel("age/Gyr")
-        _ = plt.ylabel(ylabel)
-        return fig
+        return None
 
     def getLogBins(self):
         """
@@ -279,3 +287,8 @@ class BPASS_hist(histogram):
         x = [0.0]
         x.extend(10**np.linspace(6.05, 11.05, 51)/1e9)
         return x
+
+    def copy(self):
+        out = BPASS_hist()
+        out._values = self._values
+        return out
