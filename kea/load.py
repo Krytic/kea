@@ -18,9 +18,3 @@ def packnload(file):
     out = load.model_output(file)
     os.remove(file)
     return out
-
-def rescale(vector, bin_size):
-    """
-    rescaling to events per M$_\odot$. Not per year, but per bin!
-    """
-    return vector/(10**6)

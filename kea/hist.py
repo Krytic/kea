@@ -88,9 +88,9 @@ class histogram:
                 self._values[bin_nr] += g
 
         if not isinstance(x, type(0.0)):
-            if w==1:
+            if isinstance(w, type(0.0)):
                 for i in range(0, len(x)):
-                    f(x[i], 1)
+                    f(x[i], w)
             elif len(x) != len(w):
                 raise Exception("weights needs to be as long as x")
             else:
