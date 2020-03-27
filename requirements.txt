@@ -2,5 +2,6 @@ hoki
 numpy
 pandas
 scipy
+spinx==2.4.4
 sphinx-argparse
-sphinx==2.4.4
+sphinx-rtd-theme
