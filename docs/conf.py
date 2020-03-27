@@ -24,6 +24,7 @@ author = 'Max Briel'
 # The full version, including alpha/beta/rc tags
 release = '0.0.1'
 
+master_doc = 'index' 
 
 import os
 import sys
