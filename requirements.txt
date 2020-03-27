@@ -2,4 +2,4 @@ hoki
 numpy
 pandas
 scipy
-
+sphinx-argparse
