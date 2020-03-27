@@ -12,7 +12,7 @@ Welcome to Kea's documentation!
    :caption: Modules
 
    Kea Documentation <moduledocs/packages>
-
+   Event Rates <scripts/rates>
 
 
 
