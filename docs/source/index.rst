@@ -7,8 +7,12 @@ Welcome to Kea's documentation!
 ===============================
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+   :maxdepth: 3
+   :hidden:
+   :caption: Modules
+
+   Kea Documentation <moduledocs/packages>
+
 
 
 
