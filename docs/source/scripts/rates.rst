@@ -5,7 +5,3 @@ Event Rate Calculation Scripts
    :maxdepth: 2
    :hidden: 
 
-.. argparse::
-   :filename: ../scripts/plotRatesnoZ.py
-   :func: parser
-   :prog: plotRatesnoZ.py
