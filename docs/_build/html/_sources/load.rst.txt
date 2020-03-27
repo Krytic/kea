@@ -1,8 +1,0 @@
-The load Module 
-================
-.. automodule:: kea.load
-   :members:
-
-
-.. toctree::
-   :glob:

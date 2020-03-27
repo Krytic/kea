@@ -1,9 +1,0 @@
-The Histogram Module
-====================
-
-.. automodule:: kea.hist
-   :members:
-
-
-.. toctree::
-   :glob:

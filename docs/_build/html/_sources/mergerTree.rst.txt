@@ -1,9 +1,0 @@
-Merger trees and classes
-========================
-
-.. automodule:: kea.mergerHistory
-   :members:
-
-
-.. toctree::
-   :glob:
