@@ -1,0 +1,11 @@
+Kea Documentation
+=================
+
+
+.. toctree:: 
+
+   Histograms <histogram>
+   Loading Data <load>
+   Cosmological Merger Trees <mergerTree>
+   Event Rate calculations <rates>
+

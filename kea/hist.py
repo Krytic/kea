@@ -347,7 +347,6 @@ class BPASS_hist(histogram):
     def Fill(self, x, w=1,ty=None):
         """Adds data to the BPASS histogram
 
-
         Parameters
         ----------
         x : float/array
@@ -357,10 +356,7 @@ class BPASS_hist(histogram):
         ty: string
             The type of input data. Either "log" or "lin".
             If none is given, log is assumed
-
-
         """
-
         if (ty == "log") or (ty == None):
             x = 10**x /1e9
 
