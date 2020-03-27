@@ -2,6 +2,11 @@ Event Rate Calculation Scripts
 ==============================
 
 .. toctree::
-   :maxdepth: 2
-   :hidden: 
+   :glob:
+   :hidden:
 
+
+.. argparse::
+   :filename: ../scripts/plotRatesnoZ.py
+   :func: parser
+   :prog: plotRatesnoZ.py
