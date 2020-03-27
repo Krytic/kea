@@ -3,4 +3,4 @@ numpy
 pandas
 scipy
 sphinx-argparse
-sphinx
+sphinx==2.4.4
