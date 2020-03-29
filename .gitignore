@@ -1,4 +1,4 @@
 kea.egg-info
-docs/_build
+docs/build
 .DS_Store
 __pycache__

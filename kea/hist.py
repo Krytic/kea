@@ -345,7 +345,7 @@ class BPASS_hist(histogram):
         super().__init__(edges=self.getLinEdges())
 
     def Fill(self, x, w=1,ty=None):
-        """Adds data to the BPASS histogram
+        """Adds data to the BPASS histogram. Data values should be in years
 
         Parameters
         ----------
@@ -355,7 +355,7 @@ class BPASS_hist(histogram):
             The weight of the entry of *N* entries to be added to the histogram.
         ty: string
             The type of input data. Either "log" or "lin".
-            If none is given, log is assumed
+            If none is given, log is assumed.
         """
         if (ty == "log") or (ty == None):
             x = 10**x /1e9

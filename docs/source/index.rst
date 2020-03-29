@@ -20,7 +20,7 @@ Welcome to Kea's documentation!
    :caption: Scripts
 
    Event Rates <scripts/rates>
-
+   Merger Trees <scripts/mergertrees>
 
 
 Indices and tables

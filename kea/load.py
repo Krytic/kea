@@ -1,3 +1,7 @@
+#
+# Functions to import data from BPASS
+#
+# Author: Max Briel
 import gzip
 import os
 from hoki import load
@@ -124,8 +128,8 @@ def loadGW(file, types):
 
 
 def loadAllRates(data_folder):
-    """ Loads the SNe & compact merger rates for all
-        available metallicities in BPASS
+    """ Loads the SNe & compact merger rates for all available
+    metallicities in BPASS
 
     Parameters
     ----------
