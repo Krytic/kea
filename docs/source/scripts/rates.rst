@@ -6,21 +6,13 @@ Event Rate Calculation Scripts
    :hidden:
 
 
-.. py:function:: python plotRatesnoZ.py -i DATA_FOLDER -o OUTPUT_FOLDER
+.. py:function:: python calculate2dEventRates.py -s 2DSFRD_FILE \
+                                                 -t TIME_FILE \
+                                                 -i DATA_FOLDER \
+                                                 -o OUTPUT_FILE
 
-   A script to plot the rates of SNe & Compact mergers without taking metallicity
-   into account.
-
-   :param str -i DATA_FOLDER: A string pointing to the data folder containing
-    BPASS models.
-   :param str -o OUTPUT_FOLDER: A string pointing to a folder to output the images.
-
-   :return: A collection of plots is outputted:
-
-    * The Stellar Formation Rate
-
-      1. Actual rate
-      2. Interpolated rate
-
-    * The BPASS event rates per solar mass
-    * The Event rates per :math:`Gpc^3`
+   Script to calculate the 2D event rate (using pickles SFRD and BPASS)
+   :param str -i 2DSFRD: A string pointing to the 2d SFRD file
+   :param str -t TIME_FILE: The time relations file.
+   :param str -i DATA_FOLDER: Folder containing the BPASS models
+   :param str -o OUTPUT_FILE: Filename of the outputted 2D event rate pickel.

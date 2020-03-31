@@ -21,7 +21,7 @@ Welcome to Kea's documentation!
 
    Event Rates <scripts/rates>
    Merger Trees <scripts/mergertrees>
-
+   SFRD per metallicity <scripts/2dSFRD>
 
 Indices and tables
 ==================
