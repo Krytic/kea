@@ -9,7 +9,6 @@ import pandas as pd
 import kea.mergerHistory as kea
 import numpy as np
 import pickle
-
 import argparse
 
 def buildMergerTree(data_folder, output_folder):
@@ -22,7 +21,6 @@ parser = argparse.ArgumentParser(description=__doc__,
 parser.add_argument("-i",
                     dest="data_folder",
                     type=str,
-                    nargs=1,
                     required=True,
                     help="Folder containing the data files"
                     )
@@ -30,7 +28,6 @@ parser.add_argument("-i",
 parser.add_argument("-o",
                     dest="output_folder",
                     type=str,
-                    nargs=1,
                     required=True,
                     help="Output folder for plots"
                     )
