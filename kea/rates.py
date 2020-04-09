@@ -5,7 +5,9 @@
 #
 import numpy as np
 from kea.hist import histogram, BPASS_hist
-from scipy import interpolate
+from scipy import interpolate, integrate
+from kea.constants import *
+from scipy.optimize import fminbound
 
 def getSFRD(cosmological_simulation, time_relations, length, h):
     """Extracts the total star formation rate density from a cosmological model
@@ -68,7 +70,6 @@ def getEventRates(SFR, DTDs, sampling_rate, now):
     Nbins = item.getNBins()
     mass = 0
 
-
     for i in range(1, Nbins+1):
         t1 = lookback[i-1]
         t2 = lookback[i]
@@ -87,3 +88,87 @@ def getEventRates(SFR, DTDs, sampling_rate, now):
     for i in events:
         events[i] = events[i]/bins
     return events
+
+
+def getIndividualEventRates(SFR, Zfunc, DTDs, sampling_rate, now):
+
+    events = {i: histogram(0, now, sampling_rate) for i in list(DTDs.values())[0]}
+    item = list(events.values())[0]
+    lookback = item.getBinEdges()
+    Nbins = item.getNBins()
+
+    for i in range(1, Nbins+1):
+        t1 = lookback[i-1]
+        t2 = lookback[i]
+
+        # calculate the metallicity and find nearest
+        Zvalues = interpolate.splev([t1, t2], Zfunc)
+        Z = np.abs(Zvalues[0] - Zvalues[1])/2
+        location = np.where(Z <= BPASS_METALLICITY_EDGES)[0]
+        metallicity = 0
+        if len(location) == 0:
+            metallicity = BPASS_NUM_METALLICITIES[0]
+        else:
+            metallicity = BPASS_NUM_METALLICITIES[location[0]]
+
+        mass = interpolate.splint(t1*1e9, t2*1e9, SFR)  # Total Mass/Mpc3 in bin
+
+        if mass == 0:
+            continue
+        for j in range(0, i):
+            p1 = t2 - lookback[j]
+            p2 = t2 - lookback[j+1]
+            M = DTDs[metallicity]
+            for d in M:
+                bin_events = M[d].integral(p2, p1)
+                events[d].Fill(lookback[j], bin_events*mass)
+
+    # normalise to on a per yr basis
+    bins = np.array([item.getBinWidth(i)*1e9 for i in range(0, Nbins)])
+    for i in events:
+        events[i] = events[i]/bins
+    return events
+
+
+def calculateLB(z):
+    """Calculates the lookback time from the redshift.
+
+    Parameters
+    ----------
+    z : float
+        The redshift
+
+    Returns
+    -------
+    float
+        The lookback time at the redshift
+
+    """
+    def func(x):
+        E = np.sqrt(MILLENIUM_OMEGAM*(1+x)**3 +MILLENIUM_OMEGAK*(1+x)**2 + MILLENIUM_OMEGAL)
+        return 1/((1+x)*E)
+    return t_HUBBLE *integrate.quad(func, 0, z)[0]/(60*60*24*365.2388526*1e9)
+
+
+def approximateZ(LB):
+    """Approximate the Redshift from a given lookback.
+
+    Parameters
+    ----------
+    LB : float
+        Lookback Time
+
+    Returns
+    -------
+    float
+        Approximated Redshift
+
+    """
+    zmin = 1e-8
+    zmax = 1000
+    ztol = 1e-8
+    maxfun = 500
+    f = lambda z: abs(calculateLB(z)- LB)
+    print(calculateLB(zmin), LB)
+    zbest, resval, ierr, ncall = fminbound(f,zmin, zmax, maxfun=maxfun, full_output=1, xtol=ztol)
+    return zbest

@@ -1,7 +1,8 @@
-#
-# Functions to import data from BPASS
-#
-# Author: Max Briel
+"""
+Functions to import data from BPASS
+
+Author: Max Briel
+"""
 import gzip
 import os
 from hoki import load
@@ -180,7 +181,7 @@ def loadAllRates(data_folder):
 
         The event rate are in #events/yr/:math:`M_\odot`.
     """
-    SNe_types = ["ccsn", "Ia", "LGRB", "PISNe"]
+    SNe_types = ["IIP", "II", "Ib", "Ic", "Ia", "LGRB", "PISNe"]
     compact_types = ["BHBH", "BHNS", "NSNS"]
     num_Z = BPASS_NUM_METALLICITIES
 

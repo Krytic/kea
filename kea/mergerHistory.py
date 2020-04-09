@@ -94,6 +94,29 @@ def getSFR(galaxy):
         sfr += getSFR(i)
     return sfr
 
+def getStellarMass(galaxy):
+    stellar_mass = np.zeros(64)
+
+    stellar_mass[int(galaxy.data["snapnum"])] += galaxy.data["StellarMass"]
+
+    for i in galaxy.children:
+        stellar_mass += getStellarMass(i)
+    return stellar_mass
+
+def extractData(galaxy):
+    data = ["stellarMass", "coldGas", "bulgeMass",
+            "hotGas", "sfr", "metalsStellarMass",
+            "metalsColdGas", "metalsBulgeMass", "metalsHotGas"]
+    out = {i:np.zeros(64) for i in data}
+
+    for t in out:
+        out[t][int(galaxy.data["snapnum"])] += galaxy.data[t]
+
+    for i in galaxy.children:
+        kid = extractData(i)
+        for t in kid:
+            out[t] += kid[t]
+    return out
 
 def pprint_tree(node, file=None, _prefix="", _last=True):
     """ Print the node and its children; basically the tree.
