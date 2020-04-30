@@ -12,33 +12,31 @@ python calculate2dEventRates.py -s "../../data/2dSFRD.p"
 
 import kea.rates
 import kea.load
+from kea.constants import *
 import numpy as np
 import argparse
 from scipy import interpolate
 import pickle
 import pandas as pd
 
-now = 13.799
+def calculate_2D_event_rates(SFRD_file, time_file, data_folder, output_file, nr_bins):
 
-def calculate2dEventRates(SFRD_file, time_file, data_folder, output_file):
-
-    SFRD = kea.load.load2dSFRD(SFRD_file)
-    rates = kea.load.loadAllRates(data_folder)
-    tr = pd.read_csv(data_folder+"timerel.dat", comment="#")
-
-    eventRates = {}
+    rates = kea.load.load_all_rates(data_folder)
+    SFRD = pickle.load(open(SFRD_file, "rb"))
+    tr = pd.read_csv(time_file, comment="#")
+    edges = np.linspace(0,NOW, nr_bins+1)
+    event_rates = pd.DataFrame(columns=rates.columns, index=edges[1:], dtype=np.float64)
+    event_rates.index.name = "age_Gyr"
     for column in SFRD.columns:
+        print(column)
         Z_SFR = SFRD[column]
-        func = interpolate.splrep(np.flip(tr["lookbackTime"]*1e9), np.flip(Z_SFR.values), k=1)
+        interpolated_SFRD = interpolate.splrep(np.flip(tr["lookbackTime"]*1e9), np.flip(Z_SFR.values), k=1)
+        mass_per_bin = kea.rates.calculate_mass_per_bin(edges, interpolated_SFRD)
 
-        eventRates[column] = kea.rates.getEventRates(func, rates[column], 100, now)   #event/yr/Msun -> #events/yr/Mpc3
+        for t in event_rates.columns.unique(level="Event Type"):
+            event_rates[(t,column)] = kea.rates.calculate_event_rates(edges, mass_per_bin, rates[(t, column)].values)
 
-    # Normalise the event rates to be in #events/yr/Gpc$^3$
-    for Z in eventRates:
-        for i in eventRates[Z]:
-            eventRates[Z][i] = eventRates[Z][i]*1e9
-
-    pickle.dump(eventRates, open(output_file, "wb"))
+    pickle.dump(event_rates, open(output_file, "wb"))
     return None
 
 parser = argparse.ArgumentParser(description=__doc__,
@@ -67,9 +65,20 @@ parser.add_argument("-o",
                 required=True,
                 help="Output filename for the pickled Event Rates"
                 )
-parser.set_defaults(func=calculate2dEventRates)
+
+parser.add_argument("-N",
+                    dest="nr_bins",
+                    type=int,
+                    required=True,
+                    help="Number of bins used for final binning.")
+
+parser.set_defaults(func=calculate_2D_event_rates)
 
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    calculate2dEventRates(args.SFRD_file, args.time_file, args.data_folder, args.output_folder)
+    calculate_2D_event_rates(args.SFRD_file,
+        args.time_file,
+        args.data_folder,
+        args.output_folder,
+        args.nr_bins)
