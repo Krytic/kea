@@ -4,10 +4,13 @@
 # Author: Max Briel
 #
 import numpy as np
-from kea.hist import histogram, BPASS_hist
+from kea.hist import histogram
 from scipy import interpolate, integrate
 from kea.constants import *
 from scipy.optimize import fminbound
+import kea.helpers
+import numba
+import pandas as pd
 
 def getSFRD(cosmological_simulation, time_relations, length, h):
     """Extracts the total star formation rate density from a cosmological model
@@ -41,134 +44,88 @@ def getSFRD(cosmological_simulation, time_relations, length, h):
     return np.array(SFR)/((length/h)**3)
 
 
-def getEventRates(SFR, DTDs, sampling_rate, now):
+def calculate_mass_per_bin(time_edges, interpolated_SFRD):
+    """
+    Calculates the mass created per bin given.
+
+    Parameters
+    ----------
+    time_edges: float array
+        An array containing the bin edges in Gyrs.
+    interpolated_SFRD : scipy spline interpolation
+        An intepolation of the SFRD in yrs.
+
+    Returns
+    -------
+    numpy array
+        A numpy array containing the mass generated in each bin in :math:`M_\odot`
+
+    """
+    mass_per_bin = np.zeros(len(time_edges)-1)
+    for i in range(1, len(time_edges)):
+        t1 = time_edges[i-1]
+        t2 = time_edges[i]
+        mass_per_bin[i-1] = interpolate.splint(t1*1e9, t2*1e9, interpolated_SFRD)
+    return mass_per_bin
+
+
+
+@numba.njit()
+def calculate_event_rates(edges, mass_per_bin, DTD):
     """ Calculates the events rates by combining BPASS models and the
     cosmological simulations.
 
     Parameters
     ----------
-    SFR : scipy.interpolate spline function
-        A scipy.interpolate spline of the stellar formation rates (in :math:`M/yr/Mpc^3`)
-    DTDs : dictionary of BPASS_hists
-        The Delay Time Distributions extracted in BPASS ordered in a histogram
-        based on the event type
-    sampling_rate : int
-        The sampling rate for the new histogram (number of bins)
-    now : float
-        The current age of the universe in Gyrs.
-
+    edges: numpy array
+        An array containing the edges of the mass_per_bin binning. length: N
+    mass_per_bin: numpy array
+        An array containing the amout of mass per bin. length: N-1
+    DTD : numpy array
+        An array containing the Delay Time Distribution extracted from BPASS in
+        normal BPASS binning.
     Returns
     -------
-    dictionary of histograms
-        A dictionary containing histograms with the event rates per event type
-        with units :math:`\#events/yr/Gpc^3`.
+    numpy array
+        A numpy array containing the event rates
+        with units: :math:`\#events/yr/Gpc^3`.
 
     """
-    events = {i: histogram(0, now, sampling_rate) for i in DTDs}
-    item = list(events.values())[0]
-    lookback = item.getBinEdges()
-    Nbins = item.getNBins()
-    mass = 0
+    event_rate = np.zeros(len(mass_per_bin))
+    DTD_width = np.diff(BPASS_LINEAR_TIME_EDGES)
+    for b, mass in enumerate(mass_per_bin):
+        t = edges[b+1]
+        for j in range(0, b+1):
+            p1 = t - edges[j]
+            p2 = t - edges[j+1]
+            bin_events = kea.helpers._numba_integral(p2, p1, BPASS_LINEAR_TIME_EDGES, DTD, DTD_width)
+            event_rate[j] += mass * bin_events # return Events/Mpc3 per bin
 
-    for i in range(1, Nbins+1):
-        t1 = lookback[i-1]
-        t2 = lookback[i]
-        mass = interpolate.splint(t1*1e9, t2*1e9, SFR)  # Total Mass/Mpc3 in bin
-        if mass == 0:
-            continue
-        for j in range(0, i):
-            p1 = t2 - lookback[j]
-            p2 = t2 - lookback[j+1]
-            for d in DTDs:
-                bin_events = DTDs[d].integral(p2, p1) # Event in the bin per M
-                events[d].Fill(lookback[j], bin_events*mass)
-
-    # normalise to on a per yr basis
-    bins = np.array([item.getBinWidth(i)*1e9 for i in range(0, Nbins)])
-    for i in events:
-        events[i] = events[i]/bins
-    return events
+    return event_rate/np.diff(edges) * 1e9 # To units Events/yr/Gpc3
 
 
-def getIndividualEventRates(SFR, Zfunc, DTDs, sampling_rate, now):
-
-    events = {i: histogram(0, now, sampling_rate) for i in list(DTDs.values())[0]}
-    item = list(events.values())[0]
-    lookback = item.getBinEdges()
-    Nbins = item.getNBins()
-
-    for i in range(1, Nbins+1):
-        t1 = lookback[i-1]
-        t2 = lookback[i]
-
-        # calculate the metallicity and find nearest
-        Zvalues = interpolate.splev([t1, t2], Zfunc)
-        Z = np.abs(Zvalues[0] - Zvalues[1])/2
-        location = np.where(Z <= BPASS_METALLICITY_EDGES)[0]
-        metallicity = 0
-        if len(location) == 0:
-            metallicity = BPASS_NUM_METALLICITIES[0]
-        else:
-            metallicity = BPASS_NUM_METALLICITIES[location[0]]
-
-        mass = interpolate.splint(t1*1e9, t2*1e9, SFR)  # Total Mass/Mpc3 in bin
-
-        if mass == 0:
-            continue
-        for j in range(0, i):
-            p1 = t2 - lookback[j]
-            p2 = t2 - lookback[j+1]
-            M = DTDs[metallicity]
-            for d in M:
-                bin_events = M[d].integral(p2, p1)
-                events[d].Fill(lookback[j], bin_events*mass)
-
-    # normalise to on a per yr basis
-    bins = np.array([item.getBinWidth(i)*1e9 for i in range(0, Nbins)])
-    for i in events:
-        events[i] = events[i]/bins
-    return events
-
-
-def calculateLB(z):
-    """Calculates the lookback time from the redshift.
+def calculate_2D_SFRD(data_file):
+    """
+    Extracts the Stellar Formation Rate Density from the Milenium Simulation
+    and puts it into a 2D grid of time and metallicity (pandas DataFrame).
 
     Parameters
     ----------
-    z : float
-        The redshift
 
     Returns
     -------
-    float
-        The lookback time at the redshift
-
+    pandas DataFrame
+        A 2D Stellar Formation Rate Density over snapshot number and metallicity.
     """
-    def func(x):
-        E = np.sqrt(MILLENIUM_OMEGAM*(1+x)**3 +MILLENIUM_OMEGAK*(1+x)**2 + MILLENIUM_OMEGAL)
-        return 1/((1+x)*E)
-    return t_HUBBLE *integrate.quad(func, 0, z)[0]/(60*60*24*365.2388526*1e9)
 
+    data = pd.read_csv(data_file,
+                       comment="#",
+                       usecols=["snapnum", "stellarMass",
+                                "metalsStellarMass", "sfr"]
+                       )
 
-def approximateZ(LB):
-    """Approximate the Redshift from a given lookback.
-
-    Parameters
-    ----------
-    LB : float
-        Lookback Time
-
-    Returns
-    -------
-    float
-        Approximated Redshift
-
-    """
-    zmin = 1e-8
-    zmax = 1000
-    ztol = 1e-8
-    maxfun = 500
-    f = lambda z: abs(calculateLB(z)- LB)
-    print(calculateLB(zmin), LB)
-    zbest, resval, ierr, ncall = fminbound(f,zmin, zmax, maxfun=maxfun, full_output=1, xtol=ztol)
-    return zbest
+    np_SFRD = kea.helpers._numba_calculate_2D_SFRD(data["snapnum"].to_numpy(),
+                                       data["stellarMass"].to_numpy(),
+                                       data["metalsStellarMass"].to_numpy(),
+                                       data["sfr"].to_numpy())
+    return pd.DataFrame(np_SFRD.T, columns=BPASS_NUM_METALLICITIES)

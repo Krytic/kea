@@ -5,7 +5,7 @@ Author: Max Briel
 """
 import gzip
 import os
-from hoki import load
+import hoki.load
 import kea.hist
 from kea.constants import *
 import pandas as pd
@@ -52,49 +52,45 @@ def packnload(file):
 
     """
     gunzip(file+".gz", file)
-    out = load.model_output(file)
+    out = hoki.load.model_output(file)
     os.remove(file)
+    out.set_index('log_age', inplace=True)
     return out
 
 
-def loadBPASS(file, types):
+def loadBPASS(file):
     """load BPASS rates.
 
     Parameters
     ----------
     file : string
         A string pointing to a file to be loaded
-    types : array of strings
-        An array of types of events to load from the BPASS file
 
     Returns
     -------
-    dict of BPASS histograms
-        A dictionary with BPASS histograms of the supernovae event rates
-        from the file with an entry of each give type in **types**.
+    pandas DataFrame
+        A pandas DataFrame of normalised supernovae event rates
+        from the file with an entry of each give type in the
         The event rates are in #events/yr/:math:`M_\odot`.
 
     """
     SNe_rates = packnload(file)
-    rates = {i:kea.hist.BPASS_hist() for i in types}
-
-    val = list(rates.values())[0]
-    log_bins = val.getLogBins()
-    for t in rates:
-        if t == "ccsn":
-            rates[t].Fill(log_bins, SNe_rates[["IIP", "II", "Ib", "Ic"]].sum(axis=1))
-        else:
-            rates[t].Fill(log_bins, SNe_rates[t].values)
-
-    # normalise the rates to #Events/yr/M_sun
-    bin_widths = np.array([val.getBinWidth(i)*1e9 for i in range(0, val.getNBins())])
-    for i in rates:
-        rates[i] = rates[i]/1e6/bin_widths
-
-    return rates
+    bins = SNe_rates['age_yrs']
+    SNe_rates = SNe_rates.div(1e6*SNe_rates['age_yrs'], axis=0)
+    SNe_rates.drop(['age_yrs',
+                    'low_mass',
+                    'e_Ia',
+                    'e_IIP',
+                    'e_II',
+                    'e_Ib',
+                    'e_Ic',
+                    'e_LGRB',
+                    'e_PISNe',
+                    'e_low_mass'], axis=1, inplace=True)
+    return SNe_rates
 
 
-def loadGW(file, types):
+def loadGW(file):
     """ Load the given **types** from the Graviational wave events file
 
     Parameters
@@ -113,29 +109,35 @@ def loadGW(file, types):
 
     """
     data = pd.read_csv(file,
-                    sep= "\s+",
+
                     names=["log_age", "NSNS", "BHNS", "BHBH", "age_yrs"],
                     engine="python")
-    rates = {i:kea.hist.BPASS_hist() for i in types}
-    val = list(rates.values())[0]
-    log_bins = val.getLogBins()
-    for i in rates:
-        rates[i].Fill(log_bins, data[i])
+    data.set_index('log_age', inplace=True)
+
+    bins = data['age_yrs']
+    names = {i:i for i in data.columns.values}
 
     # normalise the rates to #Events/yr/M_sun
-    bin_widths = np.array([val.getBinWidth(i)*1e9 for i in range(0, val.getNBins())])
     if "v2.2bray" in file:
-        for i in rates:
-            rates[i] = rates[i]/1e6/bin_widths
+        data = data.div(1e12*data['age_yrs'], axis=0)
+        names["BHBH"] = "BHBHv22bray"
+        names["BHNS"] = "BHNSv22bray"
+        names["NSNS"] = "NSNSv22bray"
     elif "v2.1hobbs" in file:
-        for i in rates:
-            rates[i] = rates[i]/bin_widths
+        data = data.div(1e6*data['age_yrs'], axis=0)
+        names["BHBH"] = "BHBHv21hobbs"
+        names["BHNS"] = "BHNSv21hobbs"
+        names["NSNS"] = "NSNSv21hobbs"
     elif "v2.2hobbs" in file:
-        for i in rates:
-            rates[i] = rates[i]/1e6/bin_widths
+        data = data.div(1e12*data['age_yrs'], axis=0)
+        names["BHBH"] = "BHBHv22hobbs"
+        names["BHNS"] = "BHNSv22hobbs"
+        names["NSNS"] = "NSNSv22hobbs"
     else:
         print("NO Normalisation applied")
-    return rates
+    data.drop('age_yrs', axis=1, inplace=True)
+    data.rename(names, axis=1, inplace=True)
+    return data
 
 
 def loadAllGW(folder):
@@ -144,7 +146,7 @@ def loadAllGW(folder):
     Parameters
     ----------
     folder : str
-        FOlder containing the GW events
+        Folder containing the GW events
 
     Returns
     -------
@@ -152,17 +154,40 @@ def loadAllGW(folder):
         A dictionary containing per metallicity the BPASS rates per event type.
 
     """
-    compact_types = ["BHBH", "BHNS", "NSNS"]
-    num_Z = BPASS_NUM_METALLICITIES
+    rates = kea.load.loadGW(folder
+                    + "gwmergerdata.z"
+                    + BPASS_METALLICITIES[0]
+                    + ".dat")
 
-    rates = {}
-    for x, i in enumerate(BPASS_METALLICITIES):
-        rates[num_Z[x]] = loadGW(folder+"gwmergerdata.z"+i+".dat", compact_types)
+    columns = rates.columns.values
+    arrays = [BPASS_NUM_METALLICITIES,columns]
 
-    return rates
+    cols = pd.MultiIndex.from_product(arrays,
+                                        names=['Metallicity', 'Event Type'])
+
+    rates = pd.DataFrame(columns=np.linspace(6,11,51),
+                         index=cols,
+                         dtype=np.float64)
+
+    for num, name in enumerate(BPASS_METALLICITIES):
+        # Add GW events
+        data = kea.load.loadGW(folder + "gwmergerdata.z"+name+".dat")
+        rates.loc[(BPASS_NUM_METALLICITIES[num], slice(None))][columns[0]:columns[-1]] = data.T
+
+    return rates.swaplevel(0,1).T
 
 
-def loadAllRates(data_folder):
+def load_all_GW(data_folder):
+    v21_hobbs = data_folder+"GWrates/v2.1hobbs/"
+    v22_hobbs = data_folder+"GWrates/v2.2hobbs/"
+    v22_bray = data_folder+"GWrates/v2.2bray/"
+    v21h_rates =kea.load.loadAllGW(v21_hobbs)
+    v22b_rates = kea.load.loadAllGW(v22_bray)
+    v22h_rates = kea.load.loadAllGW(v22_hobbs)
+    return pd.concat([v21h_rates, v22b_rates, v22h_rates], axis=1, sort=False)
+
+
+def load_all_rates(data_folder):
     """ Loads the SNe & compact merger rates for all available
     metallicities in BPASS.
 
@@ -181,77 +206,56 @@ def loadAllRates(data_folder):
 
         The event rate are in #events/yr/:math:`M_\odot`.
     """
-    SNe_types = ["IIP", "II", "Ib", "Ic", "Ia", "LGRB", "PISNe"]
-    compact_types = ["BHBH", "BHNS", "NSNS"]
-    num_Z = BPASS_NUM_METALLICITIES
+    arrays = [BPASS_NUM_METALLICITIES,
+                BPASS_SUPERNOVA_TYPES
+                +["NSNSv22hobbs", "BHNSv22hobbs", "BHBHv22hobbs"]]
 
-    rates = {}
-    for x, i in enumerate(BPASS_METALLICITIES):
-        rates[num_Z[x]] = loadBPASS(data_folder+"bpass_v2.2.1_imf135_300/supernova-bin-imf135_300.z"+i+".dat", SNe_types)
-        rates[num_Z[x]].update(loadGW(data_folder+"GWrates/v2.2hobbs/gwmergerdata.z"+i+".dat", compact_types))
+    columns = pd.MultiIndex.from_product(arrays,
+                                         names=['Metallicity', 'Event Type'])
 
-    return rates
+    rates = pd.DataFrame(columns=np.linspace(6,11,51), index=columns, dtype=np.float64)
+    rates.T.index.name = "log_age"
+
+    for num, name in enumerate(BPASS_METALLICITIES):
+        # Add SNe Events:
+        data = kea.load.loadBPASS(data_folder+"bpass_v2.2.1_imf135_300/supernova-bin-imf135_300.z"+name+".dat")
+        rates.loc[(BPASS_NUM_METALLICITIES[num], slice(None))]["IIP":"PISNe"] = data.T
+
+        # Add GW events
+        data = kea.load.loadGW(data_folder+"GWrates/v2.2hobbs/gwmergerdata.z"+name+".dat")
+        rates.loc[(BPASS_NUM_METALLICITIES[num], slice(None))]["NSNSv22hobbs":"BHBHv22hobbs"] = data.T
+
+    return rates.swaplevel(0,1).T
 
 
-def calculate2dSFRD(data_file, time_file):
-    """Extracts the Stellar Formation Rate Density from the Milenium Simulation
-    and puts it into a 2D grid of time and metallicity (pandas DataFrame).
+def load_all_colours(data_folder):
+    """load all BPASS colout files
 
     Parameters
     ----------
-    data_file : str
-        The filename of the cosmological simulation.
-    time_file : str
-        The filename of the time relation in the cosmological simulation.
+    data_folder: string
+        A string pointing to the BPASS folder to load
+
 
     Returns
     -------
     pandas DataFrame
-        A 2D Stellar Formation Rate Density over snapshot number and metallicity.
+        A pandas DataFrame of normalised colours for all metallicities
+        The event rates are in absolute Magnitude (Vega) for a starburst at
+        t=0 with :math:`10^6 M_\odot`.
+
     """
-    # edges are defined by BPASS metallicity binning
-    edges = [0.00005, 0.0005, 0.0015, 0.0025, 0.0035, 0.005, 0.007, 0.009, 0.012, 0.017, 0.025, 0.035]
-    text_metals = ["em5", "em4", "001","002", "003", "004", "006", "008", "010", "014", "020", "030", "040"]
-    num_metals = [0.00001, 0.0001, 0.001, 0.002, 0.003, 0.004, 0.006, 0.008, 0.010, 0.014, 0.020, 0.030, 0.040]
+    x = packnload(f"{data_folder}/colours-bin-imf135_300.z002.dat")
 
-    data = pd.read_csv(data_file, comment="#")
-    tr = pd.read_csv(time_file, comment="#")
+    arrays = [BPASS_NUM_METALLICITIES, x.columns.values]
 
-    SFR = pd.DataFrame(0.0, columns=num_metals, index=tr["snapNum"])
+    columns = pd.MultiIndex.from_product(arrays,
+                                         names=['Metallicity', 'colours'])
 
-    for index, row in data.iterrows():
-        snapnum = row["snapnum"]
-        stellarMass = row["stellarMass"]  #both in 10**10 solar masses
-        if stellarMass == 0.0:
-            continue
-        metallicity = row["metalsStellarMass"]/stellarMass
+    colours = pd.DataFrame(columns=columns, index=np.linspace(6,11,51), dtype=np.float64)
+    colours.index.name = "log_age"
+    for num, name in enumerate(BPASS_METALLICITIES):
+        data = packnload(f"{data_folder}/colours-bin-imf135_300.z{name}.dat")
+        colours[BPASS_NUM_METALLICITIES[num]] = data.to_numpy()
 
-        sfr = row["sfr"]
-        location = np.where(metallicity <= edges)[0]
-        if len(location) == 0:
-            Zbin = num_metals[0]
-        else:
-            Zbin = num_metals[location[0]]
-        SFR.at[int(snapnum), Zbin] += sfr
-
-    SFR = SFR/((62.5/0.73)**3)  #Msun/yr/Mpc3
-    return SFR
-
-
-def load2dSFRD(file):
-    """Loads the 2d Stellar Formation Rate Density from a pickle file.
-
-    Parameters
-    ----------
-    file : str
-        The filename of the pickled 2d SFRD
-
-    Returns
-    -------
-    pandas DataFrame
-        An unpickled pandas DataFrame containing the Stellar Formation Rate
-        Density over snapshot number of the Millenium Simulation and metallicity
-        of BPASS.
-    """
-    SFRS = pickle.load(open(file, 'rb'))
-    return SFRS
+    return colours
